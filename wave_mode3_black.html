@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>波形シミュレーション</title>
+  <style>
+    canvas {
+      background-color: white;
+    }
+
+    #button-container {
+      margin-bottom: 10px;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="button-container">
+    <button id="sine-wave-mode">正弦波モード</button>
+    <button id="pulse-wave-triangle-mode">パルス波モード(三角波)</button>
+    <button id="pulse-wave-sine-mode">パルス波モード(正弦波)</button>
+    <label for="image-toggle">画像の表示:</label>
+    <input type="checkbox" id="image-toggle" checked>
+  </div>
+  <canvas id="sinewaveCanvas"></canvas>
+  <script>
+    let showImage = true; // 画像を表示するかの初期状態
+    const canvas = document.getElementById('sinewaveCanvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = window.innerWidth;
+    canvas.height = 400;
+
+    const image = new Image();
+    image.src = 'fig.png'; // 画像の相対パス
+    let imageLoaded = false;
+    let imageWidth, imageHeight;
+
+    image.onload = function () {
+      imageLoaded = true;
+      imageWidth = 80;
+      imageHeight = image.height * (imageWidth / image.width);
+    };
+
+    let mode = 'sine'; // 'sine', 'triangle', 'pulseSine'
+
+    const balls = [];
+    const numBalls = 100;
+    const ballSpacing = canvas.width / numBalls;
+    const imageBallIndex = 70; // 画像が配置されるボールのインデックス
+
+    class Ball {
+      constructor(x, y, radius, color, offset) {
+        this.x = x;
+        this.y = y;
+        this.originalY = y;
+        this.radius = radius;
+        this.color = color;
+        this.angle = offset;
+        this.amplitude = 50;
+      }
+
+      update() {
+        this.y = this.originalY + Math.sin(this.angle) * this.amplitude;
+        this.angle += 0.05;
+      }
+
+      draw() {
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2, false);
+        ctx.fillStyle = this.color;
+        ctx.fill();
+      }
+    }
+
+    for (let i = 0; i < numBalls; i++) {
+      balls.push(new Ball(i * ballSpacing, canvas.height / 2, 10, 'hsl(120, 100%, 30%)', -i * 0.2));
+    }
+
+    function drawSineWave() {
+      balls.forEach((ball, index) => {
+        ball.update();
+        ball.draw();
+        if (index === imageBallIndex && imageLoaded && showImage) {
+          ctx.drawImage(image, ball.x - imageWidth / 2, ball.y - imageHeight, imageWidth, imageHeight);
+        }
+      });
+    }
+
+
+    function drawPulseWaveTriangle(balls, time) {
+      let pulseSpacing = canvas.width / 1; // パルス間の空間を設定
+      let pulseWidth = canvas.width / 8; // パルスの幅を設定
+      let speed = 0.5; // パルスの進む速度
+      let triangleHeight = 100; // 三角波の高さ
+
+      // 上昇部分と下降部分の長さの比率を設定
+      let risePortion = 1 / 3; // 上昇部分の長さの割合
+      let fallPortion = 1 - risePortion; // 下降部分の長さの割合
+
+      let pulsePeriod = pulseWidth + (pulseSpacing - pulseWidth); // パルス周期の計算
+
+      // 経過時間をパルス周期で正規化
+      time = (time * speed) % pulsePeriod;
+
+      balls.forEach((ball, index) => {
+        // X座標をパルス周期で正規化して、波の形が維持されるようにします
+        let x = (ball.x - time) % pulsePeriod;
+        if (x < 0) {
+          x += pulsePeriod; // 負の値を正の範囲にラップアラウンド
+        }
+
+        // Y座標の計算
+        let y;
+        if (x < pulseWidth * risePortion) {
+          y = (x / (pulseWidth * risePortion)) * triangleHeight; // 上昇部分
+        } else if (x < pulseWidth) {
+          y = ((pulseWidth - x) / (pulseWidth * fallPortion)) * triangleHeight; // 下降部分
+        } else {
+          y = 0; // パルスがない部分
+        }
+
+        // 波形を軸の上に表示
+        ball.y = (canvas.height / 2) - y;
+
+        ball.draw();
+        if (index === imageBallIndex && imageLoaded && showImage) { // showImageを追加
+          ctx.drawImage(image, ball.x - imageWidth / 2, ball.y - imageHeight, imageWidth, imageHeight);
+        }
+      });
+    }
+
+
+
+    // パルス波モード(正弦波)：正弦波パルスが進むようにする
+    function drawPulseWaveSine(balls, time) {
+      let amplitude = 100; // 振幅を変数として宣言
+      let pulseSpacing = 4 * Math.PI; // パルス間の空間を変数として宣言
+      let pulseWidth = Math.PI * 2; // パルスの幅（ラジアン）
+      let speed = 0.005; // 正弦波パルスの進む速度
+      let pulsePeriod = pulseWidth + pulseSpacing; // パルス間の空間を含む全体の周期
+
+      balls.forEach((ball, index) => {
+        let phase = (ball.angle + time * speed) % pulsePeriod; // 時間経過による進行を追加
+        // パルス幅内であれば正弦波を描画し、それ以外では基準線に戻る
+        ball.y = phase < pulseWidth
+          ? ball.originalY + Math.sin(-phase) * amplitude // 振幅を適用
+          : ball.originalY;
+        ball.draw();
+        if (index === imageBallIndex && imageLoaded && showImage) { // showImageを追加
+          ctx.drawImage(image, ball.x - imageWidth / 2, ball.y - imageHeight, imageWidth, imageHeight);
+        }
+      });
+    }
+
+    document.getElementById('sine-wave-mode').addEventListener('click', function () {
+      mode = 'sine';
+    });
+
+    document.getElementById('pulse-wave-triangle-mode').addEventListener('click', function () {
+      mode = 'triangle';
+    });
+
+    document.getElementById('pulse-wave-sine-mode').addEventListener('click', function () {
+      mode = 'pulseSine';
+    });
+
+    document.getElementById('image-toggle').addEventListener('change', function () {
+      showImage = this.checked; // チェックボックスの状態に応じて変数を更新
+    });
+
+
+    function animate(time) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      //軸の描画
+      ctx.beginPath();
+      ctx.moveTo(0, canvas.height / 2);
+      ctx.lineTo(canvas.width, canvas.height / 2);
+      ctx.stroke();
+      const verticalAxisX = ballSpacing * Math.floor(numBalls / 10);
+      ctx.beginPath();
+      ctx.moveTo(verticalAxisX, 0);
+      ctx.lineTo(verticalAxisX, canvas.height);
+      ctx.stroke();
+
+
+      switch (mode) {
+        case 'sine':
+          drawSineWave(balls);
+          break;
+        case 'triangle':
+          drawPulseWaveTriangle(balls, time);
+          break;
+        case 'pulseSine':
+          drawPulseWaveSine(balls, time);
+          break;
+      }
+
+      requestAnimationFrame(animate);
+    }
+
+    animate();
+  </script>
+</body>
+
+</html>
